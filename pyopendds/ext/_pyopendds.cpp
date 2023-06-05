@@ -371,6 +371,18 @@ void delete_datareader_var(PyObject* reader_capsule)
 }
 
 /**
+ * Callback for Python to Call when the DataWriter capsule is deleted
+ */
+void delete_datawriter_var(PyObject* writer_capsule)
+{
+  if (PyCapsule_CheckExact(writer_capsule))
+  {
+    DDS::DataWriter_var writer = static_cast<DDS::DataWriter *>(PyCapsule_GetPointer(writer_capsule, nullptr));
+    writer = nullptr;
+  }
+}
+
+/**
  * create_datareader(datareader: DataReader, subscriber: Subscriber, topic: Topic) -> None
  */
 PyObject* create_datareader(PyObject* self, PyObject* args)
@@ -407,6 +419,48 @@ PyObject* create_datareader(PyObject* self, PyObject* args)
 
   // Attach OpenDDS DataReader to DataReader Python Object
   if (set_capsule(*pydatareader, datareader, delete_datareader_var)) {
+    return nullptr;
+  }
+
+  Py_RETURN_NONE;
+}
+
+PyObject* create_datawriter(PyObject* self, PyObject* args)
+{
+  Ref pydatawriter;
+  Ref pypublisher;
+  Ref pytopic;
+  if (!PyArg_ParseTuple(args, "OOO", &*pydatawriter, &*pypublisher, &*pytopic)) {
+    return nullptr;
+  }
+  pydatawriter++;
+  pypublisher++;
+  pytopic++;
+
+  // Get Subscriber
+  DDS::Publisher* publisher = get_capsule<DDS::Publisher>(*pypublisher);
+  if (!publisher) {
+    return nullptr;
+  }
+
+  // Get Topic
+  DDS::Topic* topic = get_capsule<DDS::Topic>(*pytopic);
+  if (!topic) {
+    return nullptr;
+  }
+
+
+  // Create DataWriter (NEEDS CHECKING)
+  DDS::DataWriter* datawriter = publisher->create_datawriter(
+    topic, DATAWRITER_QOS_DEFAULT, nullptr, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
+
+  if (!datawriter) {
+    PyErr_SetString(Errors::PyOpenDDS_Error(), "Failed to create DataWriter");
+    return nullptr;
+  }
+
+  // Attach OpenDDS DataReader to DataReader Python Object
+  if (set_capsule(*pydatawriter, datawriter, delete_datawriter_var)) {
     return nullptr;
   }
 
@@ -471,6 +525,7 @@ PyMethodDef pyopendds_Methods[] = {
   {"create_publisher", create_publisher, METH_VARARGS, internal_docstr},
   {"create_topic", create_topic, METH_VARARGS, internal_docstr},
   {"create_datareader", create_datareader, METH_VARARGS, internal_docstr},
+  {"create_datawriter", create_datawriter, METH_VARARGS, internal_docstr},
   {"datareader_wait_for", datareader_wait_for, METH_VARARGS, internal_docstr},
   {nullptr, nullptr, 0, nullptr},
 };

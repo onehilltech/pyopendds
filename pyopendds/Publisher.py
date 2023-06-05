@@ -19,4 +19,4 @@ class Publisher:
         create_publisher(self, participant)
 
     def create_datawriter(self, topic: Topic, qos=None, listener=None):
-        pass
+        return DataWriter (self, topic, qos, listener)
